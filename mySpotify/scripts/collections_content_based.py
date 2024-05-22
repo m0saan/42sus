@@ -18,7 +18,7 @@ init(autoreset=True)
 logging.basicConfig(level=logging.INFO, format=f'{Fore.GREEN}%(asctime)s - %(levelname)s - %(message)s{Style.RESET_ALL}')
 
 
-class MXMDataLoader:
+class CollectionBaseLine:
     def __init__(self, merged_songs, top_words, filtered_tracks):
         self.songs = merged_songs
         self.top_words = top_words
@@ -46,7 +46,7 @@ class MXMDataLoader:
 
 
 
-class MXMDataLoaderW2V:
+class CollectionW2V:
     def __init__(self, merged_songs, top_words, filtered_tracks, word_vectors):
         self.songs = merged_songs
         self.word_vectors = word_vectors
@@ -68,13 +68,13 @@ class MXMDataLoaderW2V:
         similar_keyword_indices = [self.top_words.index(word) for word in similar_keywords if word in self.top_words]
 
         filtered_tracks = []
-        for track_id, word_counts in self.filtered_tracks:
+        for idx, (track_id, word_counts) in enumerate(self.filtered_tracks):
             total_count = sum(word_counts.get(idx, 0) for idx in similar_keyword_indices[:5])
             if total_count >= threshold:
                 row_df = self.songs.filter(pl.col('track_id') == track_id)
                 if len(row_df) > 0:
                     _ , artist, title, play_count = row_df[0].row(0)
-                    filtered_tracks.append((id, track_id, artist, title, play_count, total_count))
+                    filtered_tracks.append((idx, track_id, artist, title, play_count, total_count))
         print("Done ✅ filtering tracks by keyword.")
         filtered_tracks_df = pl.DataFrame(filtered_tracks, schema=['index_number', 'track_id' ,'artist', 'title', 'play_count', 'keyword_count']).sort('play_count', descending=True).head(50)
 
@@ -82,7 +82,7 @@ class MXMDataLoaderW2V:
 
 
 
-class MXMDataLoaderClassification:
+class CollectionClassification:
     def __init__(self, filtered_tracks, top_words):
         self.top_words = top_words
         self.filtered_tracks = filtered_tracks
@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
     # Loading and processing tracks with keywords
     top_words, filtered_tracks = load(mxm_dataset_path)
-    mxm_loader = MXMDataLoader(merged_songs, top_words, filtered_tracks)
+    mxm_loader = CollectionBaseLine(merged_songs, top_words, filtered_tracks)
     keyword = 'life'
     logging.info(f'Looking for tracks with the keyword "{keyword}"...')
     tracks = mxm_loader.get_sorted_tracks_by_keyword(keyword, 6)
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     except KeyError:
         logging.error("The word 'love' does not appear in this model")
 
-    mxm_loader = MXMDataLoaderW2V(merged_songs, filtered_tracks=filtered_tracks, top_words=top_words, word_vectors=wv)
+    mxm_loader = CollectionW2V(merged_songs, filtered_tracks=filtered_tracks, top_words=top_words, word_vectors=wv)
     tracks = mxm_loader.get_sorted_tracks_by_keyword('happy', 6, max_tracks=50)
     if len(tracks) > 0:
         logging.info("Tracks with similar keywords processed successfully.")
@@ -222,7 +222,7 @@ if __name__ == '__main__':
 
     # Classification of tracks
     logging.info("Starting track classification...")
-    loader = MXMDataLoaderClassification(filtered_tracks=filtered_tracks, top_words=top_words)
+    loader = CollectionClassification(filtered_tracks=filtered_tracks, top_words=top_words)
     categories = {
         "love": ["love", "heart"],
         "war": ["war", "battle"],
