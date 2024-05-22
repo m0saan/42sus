@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 mySpotify/data/
 mySpotify/models/
+mySpotify/songs_filtred.csv
