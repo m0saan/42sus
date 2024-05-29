@@ -50,7 +50,7 @@ logger.addHandler(handler)
 
 
 
-api_key = 'Your API key here'
+api_key = os.environ.get("OPENAI_API_KEY")
 
 global_path = './data'
 triplet_path = f"{global_path}/train_triplets.txt"
