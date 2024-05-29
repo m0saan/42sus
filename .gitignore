@@ -164,3 +164,4 @@ mySpotify/songs_filtred.csv
 mySpotify/*.csv
 mySpotify/data/*.csv
 mySpotify/vector_db/
+mySpotify/.vscode
