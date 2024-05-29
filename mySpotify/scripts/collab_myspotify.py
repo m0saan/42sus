@@ -10,6 +10,9 @@ from implicit.nearest_neighbours import CosineRecommender
 import logging
 from colorama import Fore, Style, init
 import warnings
+import argparse
+
+# filter warnings
 warnings.filterwarnings('ignore')
 
 # Set up basic configuration for logging
@@ -31,7 +34,7 @@ class MusicData:
 
     def get_user_song_ids(self, user_id):
       user_data = self.data[self.data['user_id'] == user_id]
-      return user_data['song_id'].unique()
+      return user_data['song_idx'].unique()
 
     def get_song_users(self, song_id):
         song_data = self.data[self.data['song_id'] == song_id]
@@ -40,6 +43,9 @@ class MusicData:
 
     def get_songs(self, song_ids):
         return self.data.filter(pl.col('user_idx') == song_ids ).select(['track_id', 'artist', 'title'])
+
+    def get_song_name(self, song_id):
+        return self.song_id_to_name[song_id]
 
 class MusicRecommender:
     def __init__(self, music_data, train_data, test_data):
@@ -109,6 +115,34 @@ class MusicRecommender:
         return df
 
 
+    def save_model(self):
+        logging.info(f'Saving model to {self.model_path}...')
+        self.model.save(self.model_path)
+        logging.info('Model saved successfully.')
+
+    def explain_recommendation_by_user_id(self, user_id, recommended_songs=None):
+            user_songs = self.music_data.get_user_song_names(user_id)
+            print(f"User with ID {user_id} has listened to:\n" + "\n".join([f"- {song}" for song in user_songs]))
+            if recommended_songs is None:
+                recommended_songs = self.recommend_songs_by_user_id(user_id, n=25)
+            print(f"Recommended songs for user with ID {user_id}:\n" + "\n".join([f"- {song}" for song in recommended_songs['song']]))
+            return recommended_songs
+
+    def explain_recommendation_by_song_id(self, song_id):
+        song_name = self.music_data.get_song_name(song_id)
+        song_users = self.music_data.get_song_users(song_id)
+        print(f"Song '{song_name}' has been listened to by {len(song_users)} users.")
+        recommended_songs = self.recommend_songs_by_song_id(song_id)
+        print(f"Recommended songs similar to '{song_name}':\n" + "\n".join([f"- {song}" for song in recommended_songs['song']]))
+        return recommended_songs
+
+    def new_recommendations_count_by_user_id(self, user_id, recommended_songs):
+        user_songs_ids = self.music_data.get_user_song_ids(user_id)
+        new_recommendations = [song for song in recommended_songs.index if song not in user_songs_ids]
+        print(f"Out of {len(recommended_songs)} recommended songs, {len(new_recommendations)} are new to the user.")
+        return len(new_recommendations)
+
+
 def load_data(triplet_path, unique_tracks_path):
     logging.info('Loading data...')
 
@@ -118,8 +152,6 @@ def load_data(triplet_path, unique_tracks_path):
 
     triplet_df = pl.read_csv(triplet_path, separator='\t', new_columns=triplet_columns, use_pyarrow=True)
     unique_tracks_df = pl.read_csv(unique_tracks_path, new_columns=track_columns, use_pyarrow=True)
-    print(f'Triplet DataFrame:\n {triplet_df}')
-    print(f'Unique Tracks DataFrame:\n {unique_tracks_df}')
 
     logging.info('Data loaded successfully.')
 
@@ -145,44 +177,81 @@ def load_data(triplet_path, unique_tracks_path):
 
 
 if __name__ == '__main__':
+    import argparse
 
-  # Load data
-  global_path = './data'
-  triplet_path = f"{global_path}/train_triplets.txt"
-  unique_tracks_path = f"{global_path}/p02_unique_tracks.csv"
+    # Argument parsing
+    parser = argparse.ArgumentParser(description="Music recommendation system.")
+    parser.add_argument('--user_id', type=str, help="User ID for song recommendations.")
+    parser.add_argument('--song_id', type=str, help="Song ID for song recommendations.")
+    parser.add_argument('--global_path', type=str, default='./data', help="Global path for data files.")
+    parser.add_argument('--triplet_path', type=str, help="Path to the triplets data file.")
+    parser.add_argument('--unique_tracks_path', type=str, help="Path to the unique tracks data file.")
+    args = parser.parse_args()
 
-  songs = load_data(triplet_path, unique_tracks_path)
+    # Set default paths if not provided
+    if not args.triplet_path:
+        args.triplet_path = f"{args.global_path}/train_triplets.txt"
+    if not args.unique_tracks_path:
+        args.unique_tracks_path = f"{args.global_path}/p02_unique_tracks.csv"
 
-  music_data = MusicData(songs)
+    # Check if at least one of user_id or song_id is provided
+    if not args.user_id and not args.song_id:
+        logging.info('Please provide a user ID or a song ID to get recommendations.')
+        parser.print_help()
+        exit(1)
 
+    # Load data
+    try:
+        songs = load_data(args.triplet_path, args.unique_tracks_path)
+    except Exception as e:
+        logging.error(f"Error loading data: {e}")
+        exit(1)
 
-  # Splitting the data into training and testing sets
-  X = songs[['user_idx', 'song_idx', 'play_count']]
-  train_data, test_data = train_test_split(X, test_size=0.2, random_state=42)
-  train_data.set_index(["user_idx", "song_idx"], inplace=True)
-  test_data.set_index(["user_idx", "song_idx"], inplace=True)
+    music_data = MusicData(songs)
 
-  # Create MusicRecommender instance
-  music_recommender = MusicRecommender(music_data, train_data, test_data)
+    # Validate user_id
+    if args.user_id:
+        if args.user_id not in music_data.data['user_id'].values:
+            logging.error(f"User ID {args.user_id} not found in the data.")
+            exit(1)
 
-  # Train the model
-  music_recommender.train()
+    # Validate song_id
+    if args.song_id:
+        if args.song_id not in music_data.data['song_id'].values:
+            logging.error(f"Song ID {args.song_id} not found in the data.")
+            exit(1)
 
-  # Calculate precision at k
-  logging.info('Calculating precision at k...')
-  # p = music_recommender.calculate_precision_at_k(k=10, num_threads=4)
-  # print(f'>>> Precision at k=10: {p}')
+    # Splitting the data into training and testing sets
+    X = songs[['user_idx', 'song_idx', 'play_count']]
+    train_data, test_data = train_test_split(X, test_size=0.2, random_state=42)
+    train_data.set_index(["user_idx", "song_idx"], inplace=True)
+    test_data.set_index(["user_idx", "song_idx"], inplace=True)
 
+    # Create MusicRecommender instance
+    try:
+        music_recommender = MusicRecommender(music_data, train_data, test_data)
+        music_recommender.train()
+    except Exception as e:
+        logging.error(f"Error initializing or training the model: {e}")
+        exit(1)
+    print(args.user_id)
+    print(args.song_id)
 
-  # Recommend songs based on user ID
-  logging.info('People similar to you listen 🎧')
-  userId = 'b7815dbb206eb2831ce0fe040d0aa537e2e800f7'
-  recommended_songs = music_recommender.recommend_songs_by_user_id(userId, n=10)
-  print(recommended_songs)
-
-
-  # Recommend songs based on song ID
-  logging.info('People who listen to this track usually listen👂 🎧')
-  songId = 'SOWYSKH12AF72A303A'
-  recommended_songs = music_recommender.recommend_songs_by_song_id(songId, n=10)
-  print(recommended_songs)
+    if args.user_id:
+        try:
+            logging.info('People similar to you listen 🎧')
+            recommended_songs = music_recommender.recommend_songs_by_user_id(args.user_id, n=25)
+            print(recommended_songs)
+            logging.info('Explaining the recommendation...\n')
+            music_recommender.explain_recommendation_by_user_id(args.user_id, recommended_songs)
+            music_recommender.new_recommendations_count_by_user_id(args.user_id, recommended_songs)
+        except Exception as e:
+            logging.error(f"Error recommending songs for user ID {args.user_id}: {e}")
+    if args.song_id:
+        try:
+            logging.info('People who listen to this track usually listen👂 🎧')
+            recommended_songs = music_recommender.recommend_songs_by_song_id(args.song_id, n=25)
+            print(recommended_songs)
+            music_recommender.explain_recommendation_by_song_id(args.song_id)
+        except Exception as e:
+            logging.error(f"Error recommending songs for song ID {args.song_id}: {e}")
