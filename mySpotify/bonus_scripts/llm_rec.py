@@ -51,10 +51,12 @@ logger.addHandler(handler)
 
 
 api_key = os.environ.get("OPENAI_API_KEY")
+if not api_key:
+  raise ValueError("Please set the OPENAI_API_KEY environment variable")
 
 global_path = './data'
 triplet_path = f"{global_path}/train_triplets.txt"
-unique_tracks_path = f"{global_path}/p02_unique_tracks.csv"
+unique_tracks_path = f"{global_path}/p02_unique_tracks.txt"
 genre_path = f"{global_path}/p02_msd_tagtraum_cd2.cls"
 
 
@@ -81,7 +83,7 @@ def load_data(triplet_path, unique_tracks_path):
     track_columns = ['track_id', 'song_id', 'artist', 'title']
 
     triplet_df = pl.read_csv(triplet_path, separator='\t', new_columns=triplet_columns, use_pyarrow=True)
-    unique_tracks_df = pl.read_csv(unique_tracks_path, new_columns=track_columns, use_pyarrow=True)
+    unique_tracks_df = pl.from_pandas(pd.read_csv(unique_tracks_path, names=track_columns, sep="<SEP>", engine='python'))
 
     logging.info('Data loaded successfully.')
 
@@ -104,7 +106,7 @@ def get_heard_of(user_id: str, music_data: MusicData) -> str:
 
 def llm_rec():
     # loader = CSVLoader(file_path="llm_rec_test.csv")
-    loader = CSVLoader(file_path="llm_RecSys_dataset_updated.csv")
+    loader = CSVLoader(file_path=f"{global_path}/llm_RecSys_dataset_updated.csv")
     data = loader.load()
 
     logging.info(f"Loaded {len(data)} documents")

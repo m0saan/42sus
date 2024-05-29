@@ -164,6 +164,9 @@ def load(mxm_dataset_path):
 if __name__ == '__main__':
     mxm_dataset_path = 'data/mxm_dataset_train.txt'
     merged_songs_path = 'data/songs.csv'
+    global_path = './data'
+    triplet_path = f"{global_path}/train_triplets.txt"
+    unique_tracks_path = f"{global_path}/p02_unique_tracks.txt"
 
     # Checking and preparing song data
     if not Path(merged_songs_path).exists():
@@ -172,8 +175,8 @@ if __name__ == '__main__':
         track_columns = ['track_id', 'song_id', 'artist', 'title']
 
         try:
-            triplet_df = pl.read_csv('data/train_triplets.txt', separator='\t', new_columns=triplet_columns, use_pyarrow=True)
-            unique_tracks_df = pl.read_csv('data/p02_unique_tracks.csv', new_columns=track_columns)
+            triplet_df = pl.read_csv(triplet_path, separator='\t', new_columns=triplet_columns, use_pyarrow=True)
+            unique_tracks_df = pl.from_pandas(pd.read_csv(unique_tracks_path, names=track_columns, sep="<SEP>", engine='python'))
             triplet_df = triplet_df.group_by('song_id').agg(pl.sum('play_count').alias('play_count')).sort('play_count', descending=True)
             merged_songs = triplet_df.join(unique_tracks_df, on='song_id', how='left').select('track_id', 'artist', 'title', 'play_count')
             merged_songs.write_csv(merged_songs_path)

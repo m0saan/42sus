@@ -38,7 +38,7 @@ def load_data(triplet_path, unique_tracks_path, genre_path):
     genre_column_names = ['track_id', 'majority_genre', 'minority_genre']
 
     triplet_df = pl.read_csv(triplet_path, separator='\t', new_columns=triplet_columns, use_pyarrow=True)
-    unique_tracks_df = pl.read_csv(unique_tracks_path, new_columns=track_columns, use_pyarrow=True)
+    unique_tracks_df = pl.from_pandas(pd.read_csv(unique_tracks_path, names=track_columns, sep="<SEP>", engine='python'))
     genre_df = pd.read_csv(genre_path, sep='\t', comment='#', names=genre_column_names)
 
     logging.info('Data loaded successfully.')
@@ -66,7 +66,7 @@ def get_top_genre_tracks(unique_tracks_df, genre_df, song_play_counts, selected_
 def main():
     global_path = './data'
     triplet_path = f"{global_path}/train_triplets.txt"
-    unique_tracks_path = f"{global_path}/p02_unique_tracks.csv"
+    unique_tracks_path = f"{global_path}/p02_unique_tracks.txt"
     genre_path = f"{global_path}/p02_msd_tagtraum_cd2.cls"
 
     triplet_df, unique_tracks_df, genre_df = load_data(triplet_path, unique_tracks_path, genre_path)
@@ -78,8 +78,10 @@ def main():
     print(Fore.BLUE + "Bottom 5 tracks:", top_250_tracks.tail(5))
 
     logging.info("Top-100 tracks by genre 🎵.")
-    selected_genres = ['Rock', 'Rap', 'Electronic']
+    selected_genres = ['Rock', 'Rap', 'Electronic', 'Mkayniiiinch']
     for selected_genre in selected_genres:
+        if selected_genre not in genre_df['majority_genre'].unique().tolist():
+            raise ValueError(f"Genre {selected_genre} not found in the dataset.")
         print("Processing genre: ", selected_genre)
         top_tracks, bottom_tracks = get_top_genre_tracks(unique_tracks_df, genre_df, song_play_counts, selected_genre)
         print(Fore.BLUE + f"Top 5 tracks for the genre {selected_genre}:", top_tracks)

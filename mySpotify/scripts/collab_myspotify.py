@@ -151,7 +151,8 @@ def load_data(triplet_path, unique_tracks_path):
     track_columns = ['track_id', 'song_id', 'artist', 'title']
 
     triplet_df = pl.read_csv(triplet_path, separator='\t', new_columns=triplet_columns, use_pyarrow=True)
-    unique_tracks_df = pl.read_csv(unique_tracks_path, new_columns=track_columns, use_pyarrow=True)
+    unique_tracks_df = pl.from_pandas(pd.read_csv(unique_tracks_path, names=track_columns, sep="<SEP>", engine='python'))
+
 
     logging.info('Data loaded successfully.')
 
@@ -192,7 +193,7 @@ if __name__ == '__main__':
     if not args.triplet_path:
         args.triplet_path = f"{args.global_path}/train_triplets.txt"
     if not args.unique_tracks_path:
-        args.unique_tracks_path = f"{args.global_path}/p02_unique_tracks.csv"
+        args.unique_tracks_path = f"{args.global_path}/p02_unique_tracks.txt"
 
     # Check if at least one of user_id or song_id is provided
     if not args.user_id and not args.song_id:
