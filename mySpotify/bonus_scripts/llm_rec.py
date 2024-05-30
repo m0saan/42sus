@@ -135,9 +135,10 @@ def llm_rec():
 def create_prompt_template(user_id, heard_of, age, gender):
     template_prefix = """You are a music recommender system that helps users find songs that match their preferences.
     Use the following pieces of context to answer the question at the end.
-    For each question, suggest five songs, with a short description of the song's genre, mood, and the reason why the user might like it.
+    For each question, suggest five songs, with a short description of the song's genre, and the reason why the user might like it.
     For each question, take into account the context and the personal information provided by the user.
     If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    If the user greets you, respond with a greeting only.
 
     {context}"""
 
@@ -153,8 +154,8 @@ def create_prompt_template(user_id, heard_of, age, gender):
 
     user_info = user_info.format(
       user_id=user_id,
-      age=18,
-      gender='female',
+      age=age,
+      gender=gender,
       heard_of=heard_of
     )
 
@@ -190,6 +191,7 @@ if __name__ == "__main__":
             qa = create_prompt_template(user_id=user_id, age=age, gender=gender, heard_of=get_heard_of(user_id, music_data))
             bot_message = qa.invoke({'query': message, 'chat_history': chat_history})
             chat_history.append((message, bot_message['result']))
+            logging.info(f"-------------> Bot source documents: {bot_message['source_documents']}")
             return "", chat_history
 
         def vote(data: gr.LikeData):

@@ -187,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--global_path', type=str, default='./data', help="Global path for data files.")
     parser.add_argument('--triplet_path', type=str, help="Path to the triplets data file.")
     parser.add_argument('--unique_tracks_path', type=str, help="Path to the unique tracks data file.")
+    parser.add_argument('--p_at_k', type=bool, default=False, help="Calculate precision at k.")
     args = parser.parse_args()
 
     # Set default paths if not provided
@@ -235,8 +236,12 @@ if __name__ == '__main__':
     except Exception as e:
         logging.error(f"Error initializing or training the model: {e}")
         exit(1)
-    print(args.user_id)
-    print(args.song_id)
+
+    # Calculate p@k
+    if args.p_at_k:
+        logging.info('Calculating precision at k...')
+        p_at_k = music_recommender.calculate_precision_at_k()
+        logging.info(f"Precision at k: {p_at_k}")
 
     if args.user_id:
         try:
