@@ -165,3 +165,4 @@ mySpotify/*.csv
 mySpotify/data/*.csv
 mySpotify/vector_db/
 mySpotify/.vscode
+understanding-customer/glove/
